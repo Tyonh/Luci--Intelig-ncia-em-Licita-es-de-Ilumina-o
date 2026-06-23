@@ -149,6 +149,8 @@ export interface FornecedorResumo {
   categorias: string[]
   ufs_atuacao: string[]
   ultima_homologacao: string | null
+  cnpj_raiz: string | null
+  total_filiais?: number
 }
 
 export async function buscarUFsFornecedores(): Promise<string[]> {
@@ -181,18 +183,32 @@ export async function buscarFornecedores(filtros: { porte?: string; uf?: string;
   const { data, count, error } = await query
   if (error) throw new Error(`Erro ao buscar fornecedores: ${error.message}`)
 
-  const fornecedores: FornecedorResumo[] = (data ?? []).map((f) => ({
-    ni: f.ni,
-    nome: f.nome,
-    tipo_pessoa: f.tipo_pessoa,
-    porte: f.porte,
-    total_homologacoes: f.total_homologacoes,
-    valor_total_homologado: Number(f.valor_total_homologado ?? 0),
-    ticket_medio: f.ticket_medio != null ? Number(f.ticket_medio) : null,
-    categorias: Array.isArray(f.categorias) ? (f.categorias as string[]) : [],
-    ufs_atuacao: Array.isArray(f.ufs_atuacao) ? (f.ufs_atuacao as string[]) : [],
-    ultima_homologacao: f.ultima_homologacao,
-  }))
+  const rows = data ?? []
+
+  // Detecta grupos com múltiplos CNPJs (filiais)
+  const raizCount: Record<string, number> = {}
+  for (const f of rows) {
+    const raiz = (f as any).cnpj_raiz ?? f.ni.slice(0, 8)
+    raizCount[raiz] = (raizCount[raiz] ?? 0) + 1
+  }
+
+  const fornecedores: FornecedorResumo[] = rows.map((f) => {
+    const raiz = (f as any).cnpj_raiz ?? f.ni.slice(0, 8)
+    return {
+      ni: f.ni,
+      nome: f.nome,
+      tipo_pessoa: f.tipo_pessoa,
+      porte: f.porte,
+      total_homologacoes: f.total_homologacoes,
+      valor_total_homologado: Number(f.valor_total_homologado ?? 0),
+      ticket_medio: f.ticket_medio != null ? Number(f.ticket_medio) : null,
+      categorias: Array.isArray(f.categorias) ? (f.categorias as string[]) : [],
+      ufs_atuacao: Array.isArray(f.ufs_atuacao) ? (f.ufs_atuacao as string[]) : [],
+      ultima_homologacao: f.ultima_homologacao,
+      cnpj_raiz: raiz,
+      total_filiais: (raizCount[raiz] ?? 1) - 1,
+    }
+  })
 
   return { fornecedores, total: count ?? 0 }
 }

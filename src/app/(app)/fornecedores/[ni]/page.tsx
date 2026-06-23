@@ -24,6 +24,14 @@ interface FornecedorCompleto {
   situacao_cadastral: string | null; data_abertura: string | null; natureza_juridica: string | null
   capital_social: number | null; atividade_principal: { codigo: string; descricao: string } | null
   cnaes_secundarios: unknown; socios: unknown; enriquecido_em: string | null
+  cnpj_raiz: string | null
+}
+
+interface Filial {
+  ni: string; nome: string; municipio_cnpj: string | null; uf_cnpj: string | null
+  situacao_cadastral: string | null; total_homologacoes: number
+  valor_total_homologado: number; email: string | null; telefone1: string | null
+  enriquecido_em: string | null
 }
 
 function fmt(v: number | null, style: 'currency' | 'decimal' = 'currency'): string {
@@ -57,6 +65,23 @@ export default async function FornecedorDetalhe({ params }: { params: Promise<{ 
     .single() as { data: FornecedorCompleto | null }
 
   if (!f) notFound()
+
+  // Busca filiais/matriz do mesmo grupo (mesmo cnpj_raiz, exceto o próprio)
+  const cnpjRaiz = f.cnpj_raiz ?? f.ni.slice(0, 8)
+  const { data: filiais } = await (supabaseAdmin as any)
+    .from('fornecedores')
+    .select('ni, nome, municipio_cnpj, uf_cnpj, situacao_cadastral, total_homologacoes, valor_total_homologado, email, telefone1, enriquecido_em')
+    .eq('cnpj_raiz', cnpjRaiz)
+    .neq('ni', ni)
+    .order('total_homologacoes', { ascending: false }) as { data: Filial[] | null }
+
+  const grupoTotal = (filiais ?? []).reduce(
+    (acc, fil) => ({
+      homologacoes: acc.homologacoes + (fil.total_homologacoes ?? 0),
+      valor: acc.valor + (fil.valor_total_homologado ?? 0),
+    }),
+    { homologacoes: f.total_homologacoes, valor: f.valor_total_homologado }
+  )
 
   // Últimas licitações onde venceu
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -116,6 +141,73 @@ export default async function FornecedorDetalhe({ params }: { params: Promise<{ 
           <Info label="Última homologação" value={f.ultima_homologacao ? format(new Date(f.ultima_homologacao), 'dd/MM/yyyy', { locale: ptBR }) : '—'} />
         </div>
       </div>
+
+      {/* Painel de grupo empresarial */}
+      {filiais && filiais.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 shadow-sm overflow-hidden">
+          <div className="bg-amber-500 px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-white font-semibold text-sm">Grupo empresarial</span>
+              <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs font-bold text-white">
+                {filiais.length} {filiais.length === 1 ? 'filial' : 'filiais'} encontrada{filiais.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="text-right hidden sm:block">
+              <div className="text-xs text-amber-100">Total consolidado do grupo</div>
+              <div className="text-white font-bold text-sm">
+                {grupoTotal.homologacoes} vitórias · {fmt(grupoTotal.valor)}
+              </div>
+            </div>
+          </div>
+          <div className="px-6 py-4">
+            <p className="text-xs text-amber-700 mb-4">
+              Este CNPJ ({cnpjRaiz}****) possui outras unidades ativas no sistema. Cada filial é um ponto de contato independente — oportunidade de abordagem comercial.
+            </p>
+            <div className="space-y-3">
+              {filiais.map((fil) => (
+                <div key={fil.ni} className="flex items-center justify-between rounded-xl border border-amber-200 bg-white px-4 py-3 gap-4">
+                  <div className="min-w-0">
+                    <Link href={`/fornecedores/${fil.ni}`} className="font-medium text-slate-800 hover:text-blue-700 text-sm line-clamp-1">
+                      {fil.nome}
+                    </Link>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-slate-400 font-mono">{fmtCnpj(fil.ni)}</span>
+                      {fil.municipio_cnpj && (
+                        <span className="text-xs text-slate-400">· {fil.municipio_cnpj}/{fil.uf_cnpj}</span>
+                      )}
+                      {fil.situacao_cadastral && (
+                        <span className={`text-xs font-semibold ${fil.situacao_cadastral === 'ATIVA' ? 'text-green-600' : 'text-red-500'}`}>
+                          · {fil.situacao_cadastral}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                      {fil.email && (
+                        <a href={`mailto:${fil.email}`} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                          ✉ {fil.email}
+                        </a>
+                      )}
+                      {fil.telefone1 && (
+                        <a href={`tel:${fil.telefone1}`} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                          ☎ {fil.telefone1}
+                        </a>
+                      )}
+                      {!fil.enriquecido_em && (
+                        <span className="text-xs text-slate-400 italic">dados pendentes de enriquecimento</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-sm font-bold text-blue-900">{fil.total_homologacoes}</div>
+                    <div className="text-xs text-slate-400">vitórias</div>
+                    <div className="text-xs font-semibold text-slate-600 mt-0.5">{fmt(fil.valor_total_homologado)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Contato e endereço */}

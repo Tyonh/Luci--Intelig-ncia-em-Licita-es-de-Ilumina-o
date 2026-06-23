@@ -137,7 +137,14 @@ export default async function FornecedoresPage({
                     <td className="px-6 py-4 text-slate-400 font-mono text-xs">{(pagina - 1) * 25 + i + 1}</td>
                     <td className="px-6 py-4">
                       <Link href={`/fornecedores/${f.ni}`} className="block">
-                        <div className="font-medium text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-1">{f.nome}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-1">{f.nome}</span>
+                          {f.total_filiais && f.total_filiais > 0 ? (
+                            <span className="shrink-0 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+                              +{f.total_filiais} filial{f.total_filiais !== 1 ? 'is' : ''}
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="text-xs text-slate-400 font-mono mt-0.5">{formatarCnpj(f.ni)}</div>
                       </Link>
                     </td>
