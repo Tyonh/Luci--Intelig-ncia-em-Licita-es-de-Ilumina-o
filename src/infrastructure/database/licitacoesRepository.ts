@@ -41,9 +41,9 @@ export async function upsertLicitacao(licitacao: LicitacaoClassificada): Promise
     atualizada_em: new Date().toISOString(),
   }
 
-  const { error } = await supabaseAdmin
+  const { error } = await (supabaseAdmin as any)
     .from('licitacoes')
-    .upsert(row, { onConflict: 'numero_controle_pncp' })
+    .upsert({ ...row, foco: licitacao.foco }, { onConflict: 'numero_controle_pncp' })
 
   if (error) {
     throw new Error(`Erro ao persistir licitação ${licitacao.numeroControlePNCP}: ${error.message}`)

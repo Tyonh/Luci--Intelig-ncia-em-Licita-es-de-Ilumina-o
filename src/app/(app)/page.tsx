@@ -35,18 +35,45 @@ function BadgeConfianca({ valor }: { valor: number }) {
   )
 }
 
+const FOCOS = [
+  { valor: undefined,      label: 'Todos',        cor: 'bg-slate-100 text-slate-700 ring-slate-200' },
+  { valor: 'viaria',       label: 'Viária',        cor: 'bg-blue-100 text-blue-700 ring-blue-200' },
+  { valor: 'natalina',     label: 'Natalina',      cor: 'bg-yellow-100 text-yellow-800 ring-yellow-200' },
+  { valor: 'esportiva',    label: 'Esportiva',     cor: 'bg-green-100 text-green-700 ring-green-200' },
+  { valor: 'manutencao',   label: 'Manutenção',    cor: 'bg-orange-100 text-orange-700 ring-orange-200' },
+  { valor: 'predial',      label: 'Predial',       cor: 'bg-purple-100 text-purple-700 ring-purple-200' },
+] as const
+
+function badgeFoco(foco: string | null) {
+  const f = FOCOS.find((x) => x.valor === foco) ?? FOCOS[1]
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${f.cor}`}>
+      {f.label}
+    </span>
+  )
+}
+
 export default async function Dashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ uf?: string; pagina?: string }>
+  searchParams: Promise<{ uf?: string; foco?: string; pagina?: string }>
 }) {
   const params = await searchParams
   const uf = params.uf
+  const foco = params.foco
   const pagina = Number(params.pagina ?? 1)
+
+  function filtroHref(overrides: Record<string, string | undefined>) {
+    const p = new URLSearchParams()
+    const vals = { uf, foco, ...overrides }
+    Object.entries(vals).forEach(([k, v]) => { if (v) p.set(k, v) })
+    const s = p.toString()
+    return s ? `/?${s}` : '/'
+  }
 
   const [stats, { licitacoes, total }, ufs] = await Promise.all([
     buscarStats(),
-    buscarLicitacoes({ uf, pagina }),
+    buscarLicitacoes({ uf, foco, pagina }),
     buscarUFsDisponiveis(),
   ])
 
@@ -67,13 +94,21 @@ export default async function Dashboard({
         />
       </div>
 
-      {/* Filtros UF */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Estado:</span>
-        <FiltroLink href="/" ativo={!uf} label="Todos" />
-        {ufs.map((u) => (
-          <FiltroLink key={u} href={`/?uf=${u}`} ativo={uf === u} label={u} />
-        ))}
+      {/* Filtros */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 w-14">Foco:</span>
+          {FOCOS.map((f) => (
+            <FiltroLink key={f.label} href={filtroHref({ foco: f.valor, pagina: undefined })} ativo={foco === f.valor} label={f.label} />
+          ))}
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 w-14">Estado:</span>
+          <FiltroLink href={filtroHref({ uf: undefined, pagina: undefined })} ativo={!uf} label="Todos" />
+          {ufs.map((u) => (
+            <FiltroLink key={u} href={filtroHref({ uf: u, pagina: undefined })} ativo={uf === u} label={u} />
+          ))}
+        </div>
       </div>
 
       {/* Tabela */}
@@ -82,6 +117,7 @@ export default async function Dashboard({
           <h2 className="font-semibold text-white">
             Licitações elegíveis
             {uf && <span className="ml-2 text-blue-300 font-normal">· {uf}</span>}
+            {foco && <span className="ml-2 text-blue-300 font-normal">· {FOCOS.find(f => f.valor === foco)?.label}</span>}
           </h2>
           <span className="text-sm text-blue-300">{total} resultado{total !== 1 ? 's' : ''}</span>
         </div>
@@ -97,6 +133,7 @@ export default async function Dashboard({
                 <tr>
                   <th className="px-6 py-3 text-left">Órgão / Município</th>
                   <th className="px-6 py-3 text-left">UF</th>
+                  <th className="px-6 py-3 text-left">Foco</th>
                   <th className="px-6 py-3 text-left">Modalidade</th>
                   <th className="px-6 py-3 text-right">Valor est.</th>
                   <th className="px-6 py-3 text-left">Publicação</th>
@@ -122,6 +159,7 @@ export default async function Dashboard({
                         {l.uf}
                       </span>
                     </td>
+                    <td className="px-6 py-4">{badgeFoco(l.foco)}</td>
                     <td className="px-6 py-4 text-slate-500 text-xs">{l.modalidade_nome ?? '—'}</td>
                     <td className="px-6 py-4 text-right font-mono text-slate-700 text-xs">{formatarValor(l.valor_total_estimado)}</td>
                     <td className="px-6 py-4 text-slate-500">{formatarData(l.data_publicacao)}</td>
@@ -157,7 +195,7 @@ export default async function Dashboard({
             <div className="flex gap-2">
               {pagina > 1 && (
                 <Link
-                  href={`/?${uf ? `uf=${uf}&` : ''}pagina=${pagina - 1}`}
+                  href={filtroHref({ pagina: String(pagina - 1) })}
                   className="rounded-lg border border-blue-200 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50 transition-colors"
                 >
                   ← Anterior
@@ -165,7 +203,7 @@ export default async function Dashboard({
               )}
               {pagina < totalPaginas && (
                 <Link
-                  href={`/?${uf ? `uf=${uf}&` : ''}pagina=${pagina + 1}`}
+                  href={filtroHref({ pagina: String(pagina + 1) })}
                   className="rounded-lg border border-blue-200 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50 transition-colors"
                 >
                   Próxima →

@@ -1,5 +1,6 @@
 import type {
   CategoriaIluminacao,
+  FocoLicitacao,
   ItemClassificado,
   ItemPNCP,
   LicitacaoClassificada,
@@ -95,6 +96,53 @@ const KEYWORDS_FORTES: Record<string, CategoriaIluminacao> = {
   'fonte chaveada para led': 'OUTROS_ELETRICOS',
 }
 
+
+// Keywords para detectar o foco principal da licitação (baseado no objetoCompra)
+const FOCO_KEYWORDS: { foco: FocoLicitacao; termos: string[] }[] = [
+  {
+    foco: 'natalina',
+    termos: [
+      'natal', 'natalino', 'natalina', 'decoracao natalina', 'iluminacao natalina',
+      'decoracao de natal', 'enfeite natalino', 'ornamentacao natalina',
+      'arvore de natal', 'festivo', 'festiva', 'decoracao festiva',
+    ],
+  },
+  {
+    foco: 'esportiva',
+    termos: [
+      'quadra esportiva', 'campo de futebol', 'estadio', 'arena esportiva',
+      'ginasio', 'pista de atletismo', 'complexo esportivo', 'campo sintetico',
+      'iluminacao esportiva', 'iluminacao de quadra', 'iluminacao de campo',
+      'campo society', 'poliesportivo',
+    ],
+  },
+  {
+    foco: 'manutencao',
+    termos: [
+      'manutencao de iluminacao', 'manutencao preventiva', 'manutencao corretiva',
+      'conservacao de iluminacao', 'servico de manutencao', 'troca de lampada',
+      'substituicao de lampada', 'retrofit de luminaria', 'retrofit de iluminacao',
+      'manutencao do sistema de iluminacao', 'gestao de iluminacao publica',
+    ],
+  },
+  {
+    foco: 'predial',
+    termos: [
+      'fachada', 'iluminacao predial', 'iluminacao de edificio', 'iluminacao interna',
+      'iluminacao de predio', 'iluminacao de escola', 'iluminacao de hospital',
+      'iluminacao de repartição', 'iluminacao de secretaria', 'iluminacao de mercado',
+      'iluminacao de edificacao',
+    ],
+  },
+]
+
+function detectarFoco(objetoCompra: string, itensDescricoes: string[]): FocoLicitacao {
+  const texto = normalizar([objetoCompra, ...itensDescricoes].join(' '))
+  for (const { foco, termos } of FOCO_KEYWORDS) {
+    if (termos.some((t) => texto.includes(normalizar(t)))) return foco
+  }
+  return 'viaria'
+}
 
 function normalizar(texto: string): string {
   return texto
@@ -223,6 +271,7 @@ export function montarLicitacaoClassificada(
     ? itens.reduce((acc, i) => acc + i.confianca, 0) / itens.length
     : 0
   const possuiResultado = itens.some((i) => i.resultados.length > 0)
+  const foco = detectarFoco(licitacao.objetoCompra ?? '', itens.map((i) => i.descricao))
 
   const codigoIbge = licitacao.unidadeOrgao.codigoIbge
   const valorHomologadoTotal = itens.reduce(
@@ -256,6 +305,7 @@ export function montarLicitacaoClassificada(
     elegivel,
     confiancaMedia,
     possuiResultado,
+    foco,
     itensElegiveis: itens,
     coletadaEm: new Date(),
     hashConteudo,

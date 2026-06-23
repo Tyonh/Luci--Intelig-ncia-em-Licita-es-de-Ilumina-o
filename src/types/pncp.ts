@@ -192,6 +192,8 @@ export interface ItemClassificado {
   resultados: ResultadoClassificado[]
 }
 
+export type FocoLicitacao = 'viaria' | 'natalina' | 'esportiva' | 'manutencao' | 'predial'
+
 export interface LicitacaoClassificada {
   id: string
   numeroControlePNCP: string
@@ -218,6 +220,7 @@ export interface LicitacaoClassificada {
   elegivel: boolean
   confiancaMedia: number
   possuiResultado: boolean
+  foco: FocoLicitacao
   itensElegiveis: ItemClassificado[]
   coletadaEm: Date
   hashConteudo: string

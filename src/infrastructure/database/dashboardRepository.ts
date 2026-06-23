@@ -13,6 +13,7 @@ export interface LicitacaoResumo {
   confianca_media: number
   revisao_manual: boolean
   total_itens: number
+  foco: string | null
 }
 
 export interface StatsGerais {
@@ -46,6 +47,7 @@ export async function buscarStats(): Promise<StatsGerais> {
 export async function buscarLicitacoes(filtros: {
   uf?: string
   modalidade?: string
+  foco?: string
   pagina?: number
 }): Promise<{ licitacoes: LicitacaoResumo[]; total: number }> {
   const pagina = filtros.pagina ?? 1
@@ -64,6 +66,7 @@ export async function buscarLicitacoes(filtros: {
     data_encerramento: string | null
     confianca_media: string | number | null
     revisao_manual: boolean
+    foco: string | null
   }
 
   let query = supabaseAdmin
@@ -76,10 +79,11 @@ export async function buscarLicitacoes(filtros: {
   if (filtros.uf) query = query.eq('uf', filtros.uf)
   if (filtros.modalidade) query = query.ilike('modalidade_nome', `%${filtros.modalidade}%`)
 
-  const { data, count, error } = await query
+  const anyQuery = filtros.foco ? (query as any).eq('foco', filtros.foco) : query
+  const { data, count, error } = await anyQuery
   if (error) throw new Error(`Erro ao buscar licitações: ${error.message}`)
 
-  const rows = (data ?? []) as LicitacaoRow[]
+  const rows = (data ?? []) as unknown as LicitacaoRow[]
 
   // Busca contagem de itens por licitação
   const ids = rows.map((r) => r.id)
@@ -105,6 +109,7 @@ export async function buscarLicitacoes(filtros: {
     confianca_media: Number(row.confianca_media ?? 0),
     revisao_manual: row.revisao_manual,
     total_itens: contagemItens[row.id] ?? 0,
+    foco: row.foco,
   }))
 
   return { licitacoes, total: count ?? 0 }
