@@ -38,6 +38,26 @@ export interface OpcoesColeta {
   modalidades?: readonly number[] // padrão: todas as modalidades alvo
 }
 
+function parseDateStr(d: string): Date {
+  return new Date(`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`)
+}
+
+function gerarChunks(dataInicial: string, dataFinal: string, maxDias = 365): { ini: string; fim: string }[] {
+  const chunks: { ini: string; fim: string }[] = []
+  let cursor = parseDateStr(dataInicial)
+  const fim = parseDateStr(dataFinal)
+  while (cursor <= fim) {
+    const fimChunk = new Date(Math.min(
+      new Date(cursor).setDate(cursor.getDate() + maxDias - 1),
+      fim.getTime()
+    ))
+    chunks.push({ ini: format(cursor, 'yyyyMMdd'), fim: format(fimChunk, 'yyyyMMdd') })
+    cursor = new Date(fimChunk)
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return chunks
+}
+
 export async function executarColeta(opcoes: OpcoesColeta = {}): Promise<void> {
   const traceId = gerarTraceId()
   const inicio = Date.now()
@@ -45,6 +65,17 @@ export async function executarColeta(opcoes: OpcoesColeta = {}): Promise<void> {
   const dataInicial = opcoes.dataInicial ?? format(subDays(new Date(), 1), 'yyyyMMdd')
   const ufsAlvo = opcoes.ufs ?? UFS_ALVO
   const modalidadesAlvo = opcoes.modalidades ?? MODALIDADES_ALVO
+
+  // Quebra períodos maiores que 365 dias em chunks (limite da API do PNCP)
+  const chunks = gerarChunks(dataInicial, dataFinal)
+  if (chunks.length > 1) {
+    log('info', 'coleta.backfill_chunks', { traceId, total: chunks.length, dataInicial, dataFinal })
+    for (const chunk of chunks) {
+      await executarColeta({ ...opcoes, dataInicial: chunk.ini, dataFinal: chunk.fim })
+    }
+    log('info', 'coleta.backfill_concluido', { traceId, chunks: chunks.length, durationMs: Date.now() - inicio })
+    return
+  }
 
   let totalColetadas = 0
   let totalElegiveis = 0
