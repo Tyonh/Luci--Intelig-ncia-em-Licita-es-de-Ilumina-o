@@ -1,0 +1,47 @@
+﻿import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+// Cliente Auth — projeto compartilhado (sessão, perfis)
+export async function createAuthClient() {
+  const cookieStore = await cookies()
+  return createServerClient(
+    process.env['NEXT_PUBLIC_SUPABASE_URL']!,
+    process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']!,
+    {
+      cookies: {
+        getAll: () => cookieStore.getAll(),
+        setAll: (cookiesToSet) => {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // Ignorado em Server Components — escrita de cookies só funciona
+            // em Server Actions e Route Handlers
+          }
+        },
+      },
+    }
+  )
+}
+
+export interface Perfil {
+  id: string
+  email: string
+  nome: string
+  cargo: 'admin' | 'vendedor'
+}
+
+export async function getPerfilAtual(): Promise<Perfil | null> {
+  const supabase = await createAuthClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data } = await supabase
+    .from('perfis')
+    .select('id, email, nome, cargo')
+    .eq('id', user.id)
+    .single()
+
+  return data as Perfil | null
+}

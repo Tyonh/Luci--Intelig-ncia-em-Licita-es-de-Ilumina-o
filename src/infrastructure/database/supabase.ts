@@ -3,20 +3,27 @@ import type { Database } from './database.types'
 
 export type { Database }
 
-const supabaseUrl = process.env['NEXT_PUBLIC_SUPABASE_URL']
-const supabaseAnonKey = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']
-const supabaseServiceKey = process.env['SUPABASE_SERVICE_ROLE_KEY']
+// Auth — projeto compartilhado com os outros sistemas da empresa
+const authUrl = process.env['NEXT_PUBLIC_SUPABASE_URL']
+const authAnonKey = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']
 
-if (!supabaseUrl || !supabaseAnonKey) {
+// Dados — projeto exclusivo do Luci (fallback para o mesmo projeto se não definido)
+const dadosUrl = process.env['LUCI_SUPABASE_URL'] ?? authUrl
+const serviceKey = process.env['SUPABASE_SERVICE_ROLE_KEY']
+
+if (!authUrl || !authAnonKey) {
   throw new Error('Variáveis NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY são obrigatórias')
 }
+if (!dadosUrl) {
+  throw new Error('LUCI_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_URL é obrigatória')
+}
 
-// Cliente público — usado no frontend (respeita RLS)
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
+// Cliente público — Auth do projeto compartilhado (respeita RLS, gerencia sessão)
+export const supabase = createClient(authUrl, authAnonKey)
 
-// Cliente admin — usado apenas em Server Actions e jobs (bypassa RLS)
+// Cliente admin — aponta para o projeto de dados do Luci (bypassa RLS, server-only)
 export const supabaseAdmin = createClient<Database>(
-  supabaseUrl,
-  supabaseServiceKey ?? supabaseAnonKey,
+  dadosUrl,
+  serviceKey ?? authAnonKey,
   { auth: { persistSession: false } }
 )

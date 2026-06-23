@@ -9,6 +9,7 @@ import {
   registrarInicioColeta,
   registrarFimColeta,
 } from '@/infrastructure/database/licitacoesRepository'
+import { executarEnriquecimento } from '@/infrastructure/cnpj/enriquecimentoJob'
 import { createHash } from 'crypto'
 
 const TAMANHO_PAGINA = 50
@@ -186,4 +187,8 @@ export function iniciarScheduler(): void {
   }
   cron.schedule('0 3 * * *', () => { void executarColeta() }, { timezone: 'America/Sao_Paulo' })
   log('info', 'coleta.scheduler_iniciado', { schedule: '03:00 BRT diário' })
+
+  // Enriquecimento 1h após a coleta — novos fornecedores já estão na base
+  cron.schedule('0 4 * * *', () => { void executarEnriquecimento() }, { timezone: 'America/Sao_Paulo' })
+  log('info', 'enriquecimento.scheduler_iniciado', { schedule: '04:00 BRT diário' })
 }
